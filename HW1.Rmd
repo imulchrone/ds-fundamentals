@@ -1,0 +1,248 @@
+Ian Mulchrone
+DSC441 Homework 1
+
+Import data set and print to validate.
+```{r}
+library(readr)
+adult <- read_csv("DSC441 FUNDAMENTALS OF DATA SCIENCE/adult.csv", col_names = TRUE, show_col_types = FALSE)
+print(adult)
+print(colnames(adult))
+```
+
+Show summary statistics.
+```{r}
+summary(adult)
+```
+
+Histogram for age distribution.
+```{r}
+library(tidyverse)
+ggplot(adult, aes(age)) + geom_histogram(binwidth = 4)
+```
+
+Change capital-gain column name to capital_gain.
+Show histogram for distribution.
+```{r}
+colnames(adult)[which(names(adult) == "capital-gain")] <- "capital_gain"
+ggplot(adult, aes(capital_gain)) + geom_histogram(bins = 20)
+```
+
+Fix other column names to remove -
+Create scatterplot matrix for numeric variables.
+```{r}
+library(GGally)
+colnames(adult)[which(names(adult) == "education-num")] <- "education_num"
+colnames(adult)[which(names(adult) == "capital-loss")] <- "capital_loss"
+colnames(adult)[which(names(adult) == "hours-per-week")] <- "hours_per_week"
+ggpairs(adult[, c("age","fnlwgt","education_num","capital_gain","capital_loss","hours_per_week")])
+```
+
+```{r}
+adult %>%
+  group_by(workclass) %>%
+  summarise("count" = n())
+```
+```{r}
+adult %>%
+  group_by(education) %>%
+  summarise("count" = n())
+```
+```{r}
+adult %>%
+  group_by(occupation) %>%
+  summarise("count" = n())
+```
+```{r}
+contingency <- adult %>%
+  group_by(race, workclass) %>%
+  tally() %>%
+  spread(race, n)
+```
+```{r}
+ggplot(adult, aes(x=race, y=workclass)) + geom_tile()
+```
+```{r}
+even <- read_csv("population_even.csv", col_names = TRUE, show_col_types = FALSE)
+head(even)
+```
+
+```{r}
+odd <- read_csv("population_odd.csv", col_names = TRUE, show_col_types = FALSE)
+head(odd)
+```
+```{r}
+population <- even %>% inner_join(odd, by="NAME")
+head(population)
+```
+```{r}
+population_clean <- population %>% select(-STATE.y)
+head(population_clean)
+```
+```{r}
+population_clean <- population_clean %>% rename_at("POPESTIMATE2010", ~"2010")
+population_clean <- population_clean %>% rename_at("POPESTIMATE2011", ~"2011")
+population_clean <- population_clean %>% rename_at("POPESTIMATE2012", ~"2012")
+population_clean <- population_clean %>% rename_at("POPESTIMATE2013", ~"2013")
+population_clean <- population_clean %>% rename_at("POPESTIMATE2014", ~"2014")
+population_clean <- population_clean %>% rename_at("POPESTIMATE2015", ~"2015")
+population_clean <- population_clean %>% rename_at("POPESTIMATE2016", ~"2016")
+population_clean <- population_clean %>% rename_at("POPESTIMATE2017", ~"2017")
+population_clean <- population_clean %>% rename_at("POPESTIMATE2018", ~"2018")
+population_clean <- population_clean %>% rename_at("POPESTIMATE2019", ~"2019")
+head(population_clean)
+```
+```{r}
+population_clean <- population_clean %>% relocate("2011", .after = "2010")
+population_clean <- population_clean %>% relocate("2013", .after = "2012")
+population_clean <- population_clean %>% relocate("2015", .after = "2014")
+population_clean <- population_clean %>% relocate("2017", .after = "2016")
+head(population_clean)
+```
+```{r}
+print(population_clean)
+```
+```{r}
+arizona2010 <- population_clean %>%
+  filter(NAME == "Arizona") %>%
+  pull("2010")
+arizona2012 <- population_clean %>%
+  filter(NAME == "Arizona") %>%
+  pull("2012")
+arizona2011 <- (arizona2010+arizona2012)/2
+print(arizona2011)
+
+```
+```{r}
+population_new <- population_clean %>%
+  mutate(`2011` = if_else(NAME=="Arizona", arizona2011, `2011`))
+head(population_new)
+```
+```{r}
+idaho2014 <- population_clean %>%
+  filter(NAME == "Idaho") %>%
+  pull("2014")
+idaho2016 <- population_clean %>%
+  filter(NAME == "Idaho") %>%
+  pull("2016")
+idaho2015 <- (idaho2014+idaho2016)/2
+print(idaho2015)
+```
+```{r}
+population_new <- population_new %>%
+  mutate(`2015` = if_else(NAME=="Idaho", idaho2015, `2015`))
+print(population_new)
+```
+
+```{r}
+montana2016 <- population_clean %>%
+  filter(NAME == "Montana") %>%
+  pull("2016")
+montana2018 <- population_clean %>%
+  filter(NAME == "Montana") %>%
+  pull("2018")
+montana2017 <- (montana2016+montana2018)/2
+print(montana2017)
+```
+```{r}
+population_new <- population_new %>%
+  mutate(`2017` = if_else(NAME=="Montana", montana2017, `2017`))
+print(population_new)
+```
+```{r}
+ohio2012 <- population_clean %>%
+  filter(NAME == "Ohio") %>%
+  pull("2012")
+ohio2014 <- population_clean %>%
+  filter(NAME == "Ohio") %>%
+  pull("2014")
+ohio2013 <- (ohio2012+ohio2014)/2
+print(ohio2013)
+```
+```{r}
+population_new <- population_new %>%
+  mutate(`2013` = if_else(NAME=="Ohio", ohio2013, `2013`))
+print(population_new)
+```
+```{r}
+wisconsin2019 <- population_clean %>%
+  filter(NAME == "Wisconsin") %>%
+  pull("2018")
+print(wisconsin2019)
+```
+```{r}
+population_new <- population_new %>%
+  mutate(`2019` = if_else(NAME=="Wisconsin", wisconsin2019, `2019`))
+print(population_new)
+```
+
+```{r}
+head(population_new)
+```
+
+```{r}
+population_new %>%
+  rowwise() %>%
+  mutate(max = max(c_across(`2010`:`2019`)))
+```
+
+```{r}
+population_new %>%
+  rowwise() %>%
+  mutate(total = sum(c_across(`2010`:`2019`)))
+```
+
+```{r}
+population_new %>%
+  mutate(sum2010 = sum(c_across(`2010`)))
+```
+
+```{r}
+il_pop <- population_new %>% filter(NAME=="Illinois")
+il_values <- il_pop %>%
+  slice(1) %>%
+  unlist(use.names = FALSE)
+  
+print(il_values[3:12])
+```
+```{r}
+illinois <- tibble(
+  YEAR = 2010:2019,
+  POPULATION = il_values[3:12]
+)
+print(illinois)
+```
+```{r}
+ca_pop <- population_new %>% filter(NAME=="California")
+ca_values <- ca_pop %>%
+  slice(1) %>%
+  unlist(use.names = FALSE)
+
+california <- tibble(
+  YEAR = 2010:2019,
+  POPULATION = ca_values[3:12]
+)
+print(california)
+```
+```{r}
+fl_pop <- population_new %>% filter(NAME=="Florida")
+fl_values <- fl_pop %>%
+  slice(1) %>%
+  unlist(use.names = FALSE)
+
+florida <- tibble(
+  YEAR = 2010:2019,
+  POPULATION = fl_values[3:12]
+)
+print(florida)
+```
+
+```{r}
+plot(illinois, type='o', col = 'green',
+     main = "Illinois Population by Year")
+plot(california, type='o', col = 'blue',
+     main = "California Population by Year")
+plot(florida, type='o', col = 'red',
+     main = "Florida Population by Year")
+
+```
+
