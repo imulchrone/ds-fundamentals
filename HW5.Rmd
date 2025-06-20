@@ -1,0 +1,259 @@
+---
+title: "Homework 5"
+author: "Ian Mulchrone"
+output: pdf_document
+---
+
+```{r}
+library(readr)
+library(tidyr)
+f1 <- read_csv("f1data2024.csv", col_names = TRUE, show_col_types = FALSE)
+head(f1)
+summary(f1)
+```
+The data consists of information from laps during Formula One races. There are multiple time variables documenting the time each lap takes place, variuos points throughout each individual lap, as well as a date variable that is also a measure of time. All of these time variables are irrelevant and will be removed from the data. Categorical variables such as driver name, team name, and tyre type will all need to converted to dummy variables. Finally, lap time, sector times, and the speed stats (measured in km/h) will need to be cleaned for nulls and outliers and explore the relationship between speed and lap time.
+```{r}
+library(dplyr)
+f1 <- f1 %>% select(-Time, -DriverNumber, -Stint, -Sector1SessionTime, -Sector2SessionTime, -Sector3SessionTime, -FreshTyre, -LapStartTime, -LapStartDate, -DeletedReason, -FastF1Generated, -IsAccurate)
+head(f1)
+dim(f1)
+```
+Before we begin exploring our data, I believe it is important to remove the rows with null values in the continuous variables.
+```{r}
+f1 <- f1 %>% drop_na(LapTime,Sector1Time,Sector2Time,Sector3Time,SpeedI1,SpeedI2,SpeedFL,SpeedST)
+dim(f1)
+```
+The rows where Deleted = True can be removed since those laps were considered invalid times. Also, any row where TrackStatus is not 1 or when a pit stop is completed (PitOutTime not Null) should also be removed since we want to focus on "normal" laps without problems on the track or when doing a pit stop. Those columns can then be removed.
+```{r}
+f1 <- subset(f1, Deleted == 'FALSE')
+f1 <- subset(f1, TrackStatus == 1)
+f1 <- f1[is.na(f1$PitOutTime),]
+f1 <- f1 %>% select(-Deleted, -TrackStatus, -PitOutTime, -PitInTime)
+head(f1)
+dim(f1)
+```
+
+
+We can now begin exploring the data by examining the continuous variables.
+```{r}
+hist(f1$LapTime)
+```
+The distribution of lap time is bimodal with a right skew.
+```{r}
+hist(f1$Sector1Time)
+hist(f1$Sector2Time)
+hist(f1$Sector3Time)
+```
+The distribution of Sector2Time is much more evenly distributed, while Sectors 1 and 3 are both right skewed like LapTime.
+```{r}
+hist(f1$SpeedI1)
+hist(f1$SpeedI2)
+hist(f1$SpeedFL)
+hist(f1$SpeedST)
+```
+The speed variables all display a left tail skew. We can plot the various speed stats against lap time and sector times to see if there is a relationship between them.
+```{r}
+library(ggplot2)
+library(GGally)
+ggpairs(f1, columns=c("LapTime","Sector1Time","Sector2Time","Sector3Time","SpeedI1","SpeedI2","SpeedFL","SpeedST"))
+```
+Looking at the relationship between these values, there is not a very high correlation between speed and lap time. The most significant relationship is in sector 2, where the correlation between Sector2Time and SpeedI2 is -0.461.
+
+Now, for the driver, personal best, compound, and event variables, dummies will need to be created.
+```{r}
+table(f1$Driver)
+```
+```{r}
+library(fastDummies)
+f1 <- dummy_cols(f1, select_columns = 'Driver')
+f1 <- f1 %>% select(-Driver)
+head(f1)
+```
+```{r}
+f1$IsPersonalBest <- ifelse(f1$IsPersonalBest == 'TRUE',1,0)
+table(f1$IsPersonalBest)
+```
+
+```{r}
+f1 <- dummy_cols(f1, select_columns = 'Compound')
+f1 <- f1 %>% select(-Compound)
+head(f1)
+```
+```{r}
+# f1 <- dummy_cols(f1, select_columns = 'Team')
+f1 <- f1 %>% select(-Team)
+# head(f1)
+```
+Create new dummy variable to determine if the driver is in the lead
+```{r}
+# f1$Leader <- ifelse(f1$Position == 1,1,0)
+# f1 <- f1 %>% select(-Position)
+# table(f1$Leader)
+# f1 <- f1 %>% select(-Leader)
+```
+
+Final Processed Data
+```{r}
+head(f1)
+dim(f1)
+```
+In total, there are 41 columns and 17,411 rows
+
+We can now use clustering on the lap data and compare them to the event labels.
+```{r}
+f1_cluster <- f1 %>% select(-Event)
+set.seed(65236)
+```
+
+```{r}
+library(caret)
+preproc <- preProcess(f1_cluster, method = c("center","scale"))
+predictors <- predict(preproc, f1_cluster)
+```
+
+Since there are 24 events, we will create 24 clusters
+```{r}
+fit <- kmeans(predictors, centers = 24, nstart = 30)
+fit
+```
+```{r}
+cluster_result <- data.frame(Event = f1$Event, Kmeans = fit$cluster)
+head(cluster_result, n = 100)
+```
+```{r}
+cluster_result %>% group_by(Kmeans) %>% select(Kmeans, Event) %>% table()
+```
+The only event kmeans clustering able to predict with any real accuracy was the São Paulo Grand Prix. Out of 599 laps, 541 were accurately identified as being at the São Paulo Grand Prix. Other than that, all other events don't have any meaningful result. Perhaps a more interesting test would be to cluster laps and compare them to see which events have similar lap data.
+
+```{r}
+library(factoextra)
+fviz_cluster(fit, data = predictors)
+```
+```{r}
+pca = prcomp(predictors)
+rotated_data = as.data.frame(pca$x)
+rotated_data$Event <- f1$Event
+ggplot(data = rotated_data, aes(x = PC1, y = PC2, col = Event)) + geom_point(alpha = 0.3)
+```
+
+```{r}
+rotated_data$Clusters = as.factor(fit$cluster)
+ggplot(data = rotated_data, aes(x = PC1, y = PC2, col = Clusters)) + geom_point()
+```
+The cluster plots show that the model was unable to distinguish between the events.
+
+For classification, we will try to predict the IsPersonalBest column, which denotes that driver's personal best lap time up until that point in the race.
+Dummy variables for Event can now be created and used for this clasification.
+```{r}
+table(f1$Event)
+```
+```{r}
+f1$AbuDhabi <- ifelse(f1$Event == 'Abu Dhabi Grand Prix',1,0)
+f1$Australian <- ifelse(f1$Event == 'Australian Grand Prix',1,0)
+f1$Austrian <- ifelse(f1$Event == 'Austrian Grand Prix',1,0)
+f1$Azerbaijan <- ifelse(f1$Event == 'Azerbaijan Grand Prix',1,0)
+f1$Bahrain <- ifelse(f1$Event == 'Bahrain Grand Prix',1,0)
+f1$Belgian <- ifelse(f1$Event == 'Belgian Grand Prix',1,0)
+f1$British <- ifelse(f1$Event == 'British Grand Prix',1,0)
+f1$Canadian <- ifelse(f1$Event == 'Canadian Grand Prix',1,0)
+f1$Chinese <- ifelse(f1$Event == 'Chinese Grand Prix',1,0)
+f1$Dutch <- ifelse(f1$Event == 'Dutch Grand Prix',1,0)
+f1$EmiliaRomagna <- ifelse(f1$Event == 'Emilia Romagna Grand Prix',1,0)
+f1$Hungarian <- ifelse(f1$Event == 'Hungarian Grand Prix',1,0)
+f1$Italian <- ifelse(f1$Event == 'Italian Grand Prix',1,0)
+f1$Japanese <- ifelse(f1$Event == 'Japanese Grand Prix',1,0)
+f1$LasVegas <- ifelse(f1$Event == 'Las Vegas Grand Prix',1,0)
+f1$MexicoCity <- ifelse(f1$Event == 'Mexico City Grand Prix',1,0)
+f1$Miami <- ifelse(f1$Event == 'Miami Grand Prix',1,0)
+f1$Monaco <- ifelse(f1$Event == 'Monaco Grand Prix',1,0)
+f1$Qatar <- ifelse(f1$Event == 'Qatar Grand Prix',1,0)
+f1$SaoPaulo <- ifelse(f1$Event == 'São Paulo Grand Prix',1,0)
+f1$SaudiArabian <- ifelse(f1$Event == 'Saudi Arabian Grand Prix',1,0)
+f1$Singapore <- ifelse(f1$Event == 'Singapore Grand Prix',1,0)
+f1$Spanish <- ifelse(f1$Event == 'Spanish Grand Prix',1,0)
+f1$UnitedStates <- ifelse(f1$Event == 'United States Grand Prix',1,0)
+```
+Verify dummies created correctly
+```{r}
+table(f1$AbuDhabi)
+table(f1$Australian)
+table(f1$Austrian)
+table(f1$Azerbaijan)
+table(f1$Bahrain)
+table(f1$Belgian)
+table(f1$British)
+table(f1$Canadian)
+table(f1$Chinese)
+table(f1$Dutch)
+table(f1$EmiliaRomagna)
+table(f1$Hungarian)
+table(f1$Italian)
+table(f1$Japanese)
+table(f1$LasVegas)
+table(f1$MexicoCity)
+table(f1$Miami)
+table(f1$Monaco)
+table(f1$Qatar)
+table(f1$SaoPaulo)
+table(f1$SaudiArabian)
+table(f1$Singapore)
+table(f1$Spanish)
+table(f1$UnitedStates)
+```
+```{r}
+head(f1)
+```
+
+Split data into 75/25 train/test
+```{r}
+f1$IsPersonalBest <- as.factor(f1$IsPersonalBest)
+index = createDataPartition(y=f1$IsPersonalBest, p=0.75, list=FALSE)
+train_set = f1[index,]
+test_set = f1[-index,]
+```
+
+Run SVM classifier
+```{r}
+svm_split <- train(IsPersonalBest ~., data = train_set, method = "svmLinear")
+pred_split <- predict(svm_split, test_set)
+sum(pred_split == test_set$IsPersonalBest) / nrow(test_set)
+```
+```{r}
+confusionMatrix(test_set$IsPersonalBest, pred_split)
+```
+Run decision tree classifier
+```{r}
+tree <- train(IsPersonalBest ~., data = train_set, method = "rpart")
+tree
+```
+```{r}
+pred_split <- predict(tree, test_set)
+cm <- confusionMatrix(test_set$IsPersonalBest, pred_split)
+cm
+```
+SVM Accuracy = 76.79%
+Tree Accuracy = 80.15%
+
+The decision tree model performed better than SVM. Further evaluation will use the tree model.
+```{r}
+precision <- 214/(30+214)
+precision
+```
+```{r}
+recall <- 214/(834+214)
+recall
+```
+```{r}
+library(pROC)
+pred_prob <- predict(tree, test_set, type = 'prob')
+head(pred_prob)
+```
+```{r}
+roc_obj <- roc((test_set$IsPersonalBest), pred_prob[,1])
+plot(roc_obj, print.auc=TRUE)
+```
+The precision of the model is fairly high at 87.7% but the model struggles with recall at only 20.42%. The accuracy is high because of the imbalance in the data, whereby classifying each lap as not being a personal best it can achieve good results. The model's struggles are further seen in the ROC plot with a poor AUC of 0.351. This shows that there was really no connection found between a personal best lap and the independent variables, so the model is essentially guessing when it predicts one.
+
+Overall, I feel like I could have chosen better targets for classification and clustering. Since Formula One circuits are all different from one another, I was hoping that their lap data would differentiate enough to cluster them effectively, but that was not the case. Interestingly though, there was one event, the São Paulo Grand Prix, that stood out from the rest but I'll have to do some more research to figure out why that was the case.
+
+This course has allowed me to gain a better knowledge of techniques and strategies to gain meaningful insight from the data mining process. Having a plan of action to clean and process relevant data and knowing what type of models are most effective at finding useful information from that data is the core of data science. I feel more equipped to evaluate the outcomes of my models and know how the process can be changed to achieve a better result. Within each model themselves there is also room for improvement. Tuning for certain evaluation metrics or interpretability are essential components when building a model. This requires knowledge of how each model technique operates and also creativity as a data scientist to adapt your application process based on the problem presented to you. There are no simple and easy fixes to these issues and even if an improved solution is found it may come at a cost of efficiency, making it less desirable. Ultimately, functionality is the most important aspect of data science and speaking with experts in the field of research you are working in will give direction to your process to achieve a useful result. 

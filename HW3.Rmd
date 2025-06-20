@@ -1,0 +1,442 @@
+Ian Mulchrone
+Fundamentals of Data Science
+Homework 3
+
+```{r}
+library(readr)
+library(tidyr)
+cancer <- read_csv("breast_cancer_updated.csv", col_names = TRUE, show_col_types = FALSE)
+cancer <- cancer %>% select(-IDNumber)
+cancer <- cancer %>% drop_na()
+print(cancer)
+```
+
+```{r}
+library(caret)
+train_control = trainControl(method = "cv", number = 10)
+
+# Fit the model
+tree1 <- train(Class ~., data = cancer, method = "rpart", trControl = train_control, na.action = na.exclude)
+# Evaluate fit
+tree1
+```
+
+```{r}
+library(rattle)
+```
+
+```{r}
+fancyRpartPlot(tree1$finalModel, caption = "")
+```
+```{r}
+data(storms)
+storms$category <- factor(storms$category)
+storms_clean <- storms %>% drop_na()
+storms_clean <- storms_clean %>% select(-name)
+head(storms_clean)
+```
+
+
+```{r}
+library(rpart)
+set.seed(76893)
+
+train_control = trainControl(method = "cv", number = 10)
+
+hypers = rpart.control(minsplit =  5, maxdepth = 2, minbucket = 3)
+
+tree2 <- train(category ~., data = storms_clean, control = hypers, trControl = train_control, method = "rpart1SE")
+tree2
+```
+```{r}
+set.seed(43201)
+
+index = createDataPartition(y=storms_clean$category, p=0.8, list=FALSE)
+train_set = storms_clean[index,]
+test_set = storms_clean[-index,]
+```
+
+```{r}
+train_control = trainControl(method = "cv", number = 10)
+
+hypers = rpart.control(minsplit =  5, maxdepth = 2, minbucket = 3)
+
+tree3 <- train(category ~., data = train_set, control = hypers, trControl = train_control, method = "rpart1SE")
+tree3
+```
+```{r}
+storms_pred_train <- predict(tree3, train_set)
+confusionMatrix(train_set$category, storms_pred_train)
+```
+```{r}
+storms_pred_test <- predict(tree3, test_set)
+confusionMatrix(test_set$category, storms_pred_test)
+```
+```{r}
+#Tree 1
+train_control = trainControl(method = "cv", number = 10)
+
+hypers = rpart.control(minsplit =  3, maxdepth = 1, minbucket = 3)
+
+tree1 <- train(category ~., data = train_set, control = hypers, trControl = train_control, method = "rpart1SE")
+
+pred_tree <- predict(tree1, train_set)
+# Confusion Matrix
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test Set
+# Evaluate the fit with a confusion matrix
+pred_tree <- predict(tree1, test_set)
+# Confusion Matrix
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+# Get training accuracy
+a_train <- cfm_train$overall[1]
+# Get testing accuracy
+a_test <- cfm_test$overall[1]
+# Get number of nodes
+nodes <- nrow(tree1$finalModel$frame)
+
+# Form the table
+comp_tbl <- data.frame("Nodes" = nodes, "TrainAccuracy" = a_train, "TestAccuracy" = a_test,
+                       "MaxDepth" = 1, "Minsplit" = 3, "Minbucket" = 3)
+
+
+#Tree 2
+
+hypers = rpart.control(minsplit =  5, maxdepth = 2, minbucket = 5)
+
+tree2 <- train(category ~., data = train_set, control = hypers, trControl = train_control, method = "rpart1SE")
+
+pred_tree <- predict(tree2, train_set)
+# Confusion Matrix
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test Set
+# Evaluate the fit with a confusion matrix
+pred_tree <- predict(tree2, test_set)
+# Confusion Matrix
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+# Get training accuracy
+a_train <- cfm_train$overall[1]
+# Get testing accuracy
+a_test <- cfm_test$overall[1]
+# Get number of nodes
+nodes <- nrow(tree2$finalModel$frame)
+
+# Form the table
+comp_tbl <- comp_tbl %>% rbind(list(nodes, a_train, a_test, 2, 5, 5))
+
+
+#Tree 3
+
+hypers = rpart.control(minsplit =  10, maxdepth = 3, minbucket = 10)
+
+tree3 <- train(category ~., data = train_set, control = hypers, trControl = train_control, method = "rpart1SE")
+
+pred_tree <- predict(tree3, train_set)
+# Confusion Matrix
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test Set
+# Evaluate the fit with a confusion matrix
+pred_tree <- predict(tree3, test_set)
+# Confusion Matrix
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+# Get training accuracy
+a_train <- cfm_train$overall[1]
+# Get testing accuracy
+a_test <- cfm_test$overall[1]
+# Get number of nodes
+nodes <- nrow(tree3$finalModel$frame)
+
+# Form the table
+comp_tbl <- comp_tbl %>% rbind(list(nodes, a_train, a_test, 3, 10, 10))
+
+
+#Tree 4
+
+hypers = rpart.control(minsplit =  15, maxdepth = 3, minbucket = 15)
+
+tree4 <- train(category ~., data = train_set, control = hypers, trControl = train_control, method = "rpart1SE")
+
+pred_tree <- predict(tree4, train_set)
+# Confusion Matrix
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test Set
+# Evaluate the fit with a confusion matrix
+pred_tree <- predict(tree4, test_set)
+# Confusion Matrix
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+# Get training accuracy
+a_train <- cfm_train$overall[1]
+# Get testing accuracy
+a_test <- cfm_test$overall[1]
+# Get number of nodes
+nodes <- nrow(tree4$finalModel$frame)
+
+# Form the table
+comp_tbl <- comp_tbl %>% rbind(list(nodes, a_train, a_test, 3, 15, 15))
+
+
+#Tree 5
+
+hypers = rpart.control(minsplit =  15, maxdepth = 4, minbucket = 15)
+
+tree5 <- train(category ~., data = train_set, control = hypers, trControl = train_control, method = "rpart1SE")
+
+pred_tree <- predict(tree5, train_set)
+# Confusion Matrix
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test Set
+# Evaluate the fit with a confusion matrix
+pred_tree <- predict(tree5, test_set)
+# Confusion Matrix
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+# Get training accuracy
+a_train <- cfm_train$overall[1]
+# Get testing accuracy
+a_test <- cfm_test$overall[1]
+# Get number of nodes
+nodes <- nrow(tree5$finalModel$frame)
+
+# Form the table
+comp_tbl <- comp_tbl %>% rbind(list(nodes, a_train, a_test, 4, 15, 15))
+
+
+#Tree 6
+
+hypers = rpart.control(minsplit =  25, maxdepth = 4, minbucket = 25)
+
+tree6 <- train(category ~., data = train_set, control = hypers, trControl = train_control, method = "rpart1SE")
+
+pred_tree <- predict(tree6, train_set)
+# Confusion Matrix
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test Set
+# Evaluate the fit with a confusion matrix
+pred_tree <- predict(tree6, test_set)
+# Confusion Matrix
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+# Get training accuracy
+a_train <- cfm_train$overall[1]
+# Get testing accuracy
+a_test <- cfm_test$overall[1]
+# Get number of nodes
+nodes <- nrow(tree6$finalModel$frame)
+
+# Form the table
+comp_tbl <- comp_tbl %>% rbind(list(nodes, a_train, a_test, 4, 25, 25))
+
+
+#Tree 7
+
+hypers = rpart.control(minsplit =  50, maxdepth = 5, minbucket = 50)
+
+tree7 <- train(category ~., data = train_set, control = hypers, trControl = train_control, method = "rpart1SE")
+
+pred_tree <- predict(tree7, train_set)
+# Confusion Matrix
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test Set
+# Evaluate the fit with a confusion matrix
+pred_tree <- predict(tree7, test_set)
+# Confusion Matrix
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+# Get training accuracy
+a_train <- cfm_train$overall[1]
+# Get testing accuracy
+a_test <- cfm_test$overall[1]
+# Get number of nodes
+nodes <- nrow(tree7$finalModel$frame)
+
+# Form the table
+comp_tbl <- comp_tbl %>% rbind(list(nodes, a_train, a_test, 5, 50, 50))
+
+
+#Tree 8
+
+hypers = rpart.control(minsplit =  75, maxdepth = 5, minbucket = 75)
+
+tree8 <- train(category ~., data = train_set, control = hypers, trControl = train_control, method = "rpart1SE")
+
+pred_tree <- predict(tree8, train_set)
+# Confusion Matrix
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test Set
+# Evaluate the fit with a confusion matrix
+pred_tree <- predict(tree8, test_set)
+# Confusion Matrix
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+# Get training accuracy
+a_train <- cfm_train$overall[1]
+# Get testing accuracy
+a_test <- cfm_test$overall[1]
+# Get number of nodes
+nodes <- nrow(tree8$finalModel$frame)
+
+# Form the table
+comp_tbl <- comp_tbl %>% rbind(list(nodes, a_train, a_test, 5, 75, 75))
+
+
+#Tree 9
+
+hypers = rpart.control(minsplit =  100, maxdepth = 6, minbucket = 100)
+
+tree9 <- train(category ~., data = train_set, control = hypers, trControl = train_control, method = "rpart1SE")
+
+pred_tree <- predict(tree9, train_set)
+# Confusion Matrix
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test Set
+# Evaluate the fit with a confusion matrix
+pred_tree <- predict(tree9, test_set)
+# Confusion Matrix
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+# Get training accuracy
+a_train <- cfm_train$overall[1]
+# Get testing accuracy
+a_test <- cfm_test$overall[1]
+# Get number of nodes
+nodes <- nrow(tree9$finalModel$frame)
+
+# Form the table
+comp_tbl <- comp_tbl %>% rbind(list(nodes, a_train, a_test, 6, 100, 100))
+
+
+#Tree 10
+
+hypers = rpart.control(minsplit =  250, maxdepth = 6, minbucket = 250)
+
+tree10 <- train(category ~., data = train_set, control = hypers, trControl = train_control, method = "rpart1SE")
+
+pred_tree <- predict(tree10, train_set)
+# Confusion Matrix
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test Set
+# Evaluate the fit with a confusion matrix
+pred_tree <- predict(tree10, test_set)
+# Confusion Matrix
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+# Get training accuracy
+a_train <- cfm_train$overall[1]
+# Get testing accuracy
+a_test <- cfm_test$overall[1]
+# Get number of nodes
+nodes <- nrow(tree10$finalModel$frame)
+
+# Form the table
+comp_tbl <- comp_tbl %>% rbind(list(nodes, a_train, a_test, 6, 250, 250))
+
+
+#Tree 11
+
+hypers = rpart.control(minsplit =  500, maxdepth = 10, minbucket = 500)
+
+tree11 <- train(category ~., data = train_set, control = hypers, trControl = train_control, method = "rpart1SE")
+
+pred_tree <- predict(tree11, train_set)
+# Confusion Matrix
+cfm_train <- confusionMatrix(train_set$category, pred_tree)
+
+# Test Set
+# Evaluate the fit with a confusion matrix
+pred_tree <- predict(tree11, test_set)
+# Confusion Matrix
+cfm_test <- confusionMatrix(test_set$category, pred_tree)
+
+# Get training accuracy
+a_train <- cfm_train$overall[1]
+# Get testing accuracy
+a_test <- cfm_test$overall[1]
+# Get number of nodes
+nodes <- nrow(tree11$finalModel$frame)
+
+# Form the table
+comp_tbl <- comp_tbl %>% rbind(list(nodes, a_train, a_test, 10, 500, 500))
+
+comp_tbl
+```
+```{r}
+ggplot(comp_tbl, aes(x=Nodes)) +
+  geom_line(aes(y = TrainAccuracy), color = "red") +
+  geom_line(aes(y = TestAccuracy), color="blue") +
+  ylab("Accuracy")
+```
+```{r}
+ggplot(comp_tbl, aes(x=Nodes)) +
+  geom_point(aes(y = TrainAccuracy), color = "red") +
+  geom_point(aes(y = TestAccuracy), color="blue") +
+  ylab("Accuracy")
+```
+```{r}
+storms_pred_train <- predict(tree5, train_set)
+confusionMatrix(train_set$category, storms_pred_train)
+```
+```{r}
+storms_pred_test <- predict(tree5, test_set)
+confusionMatrix(test_set$category, storms_pred_test)
+```
+
+```{r}
+train_control = trainControl(method = "cv", number = 10)
+
+hypers = rpart.control(minsplit =  15, maxdepth = 4, minbucket = 15)
+
+tree1 <- train(category ~., data = train_set, control = hypers, trControl = train_control, method = "rpart1SE")
+tree1
+```
+Problem 4
+```{r}
+bank <- read_csv("Bank_Modified.csv", col_names = TRUE, show_col_types = FALSE)
+bank <- bank %>% select(-...1)
+bank$approval <- as.factor(bank$approval)
+bank <- bank %>% drop_na()
+head(bank)
+```
+```{r}
+hypers = rpart.control(minsplit =  10, maxdepth = 20)
+
+tree1 <- train(approval ~., data = bank, control = hypers, trControl = train_control, method = "rpart1SE")
+tree1
+nrow(tree1$finalModel$frame)
+```
+
+
+```{r}
+importance <- varImp(tree1, scale = FALSE)
+importance
+```
+```{r}
+plot(importance)
+```
+
+```{r}
+bank_new <- bank[c('approval', 'bool1', 'cont4', 'bool2', 'ages', 'cont3', 'cont6')]
+tree2<- train(approval ~., data = bank_new, control = hypers, trControl = train_control, method = "rpart1SE")
+tree2
+nrow(tree2$finalModel$frame)
+```
+```{r}
+fancyRpartPlot(tree1$finalModel, caption = "Tree 1")
+```
+```{r}
+fancyRpartPlot(tree2$finalModel, caption = "Tree 2")
+```
+

@@ -1,0 +1,277 @@
+ Ian Mulchrone
+ Homework 4
+ 
+ Problem 1
+ 1-a 
+ -Read in wine datasets
+ -Add type column for wine type (Red = 1, White = 0)
+ -Merge datasets
+```{r}
+library(readr)
+library(dplyr)
+red <- read_delim("winequality-red.csv", col_names = TRUE, show_col_types = FALSE, delim=";")
+red$type <- "red"
+
+white <- read_delim("winequality-white.csv", col_names = TRUE, show_col_types = FALSE, delim=";")
+white$type <- "white"
+
+wine <- full_join(red,white)
+
+# table(wine$type)
+dim(wine)
+summary(wine)
+```
+1-b
+Use PCA to create a projection of the data to 2D and show a scatterplot with color showing the wine type
+```{r}
+library(tidyverse)
+
+predictors = wine %>% select(-type)
+pca = prcomp(predictors)
+rotated_data = as.data.frame(pca$x)
+rotated_data$Color = wine$type
+ggplot(data = rotated_data, aes(x = PC1, y = PC2, col = Color)) + geom_point(alpha = 0.3)     
+
+# scale_color_manual(values = c("red","white"))
+
+```
+1-d
+KNN
+```{r}
+library(caret)
+set.seed(456)
+
+# Remember scaling is crucial for KNN
+ctrl <- trainControl(method="cv", number = 10) 
+knnFit <- train(type ~ ., data = wine, 
+                method = "knn", 
+                trControl = ctrl, 
+                preProcess = c("center","scale"))
+
+#Output of kNN fit
+knnFit
+```
+Decision tree
+```{r}
+wine_tree <- wine
+colnames(wine_tree) <- make.names(colnames(wine_tree))
+tree <- train(type ~., data = wine_tree, method = "rpart", trControl = ctrl)
+# Evaluate fit
+tree
+
+```
+SVM
+```{r}
+svm <- train(type ~., data = wine, method = "svmLinear")
+# Evaluate fit
+svm
+```
+1-e
+KNN prediction plot
+```{r}
+wine_knn <- predict(knnFit, wine)
+# print(wine_knn)
+wine$knn <- wine_knn
+
+
+rotated_data$KNN = wine$knn
+ggplot(data = rotated_data, aes(x = PC1, y = PC2, col = KNN)) + geom_point(alpha = 0.3) 
+```
+Decision Tree prediction plot
+```{r}
+wine_tree_results <- predict(tree, wine_tree)
+# print(wine_knn)
+wine$tree <- wine_tree_results
+
+
+rotated_data$Tree = wine$tree
+ggplot(data = rotated_data, aes(x = PC1, y = PC2, col = Tree)) + geom_point(alpha = 0.3)
+```
+SVM prediction plot
+```{r}
+wine_svm <- predict(svm, wine)
+# print(wine_knn)
+wine$svm <- wine_svm
+
+
+rotated_data$SVM = wine$svm
+ggplot(data = rotated_data, aes(x = PC1, y = PC2, col = SVM)) + geom_point(alpha = 0.3) 
+```
+Problem 2
+2-a
+Import Sacramento data set and create dummies for categorical variables
+```{r}
+data(Sacramento)
+
+dummies <- dummyVars(type ~ ., data = Sacramento)
+sac_dummies <- as.data.frame(predict(dummies, newdata = Sacramento))
+sac_dummies$type <- Sacramento$type
+head(sac_dummies)
+```
+2-c
+Use KNN to classify type
+```{r}
+library(kknn)
+set.seed(86543)
+
+tuneGrid <- expand.grid(kmax = 3:7,                       
+                        kernel = c("rectangular", "cos"),  
+                        distance = 1:3) 
+
+# Remember scaling is crucial for KNN
+ctrl <- trainControl(method="cv", number = 10) 
+kknn_fit <- train(type ~ ., data = sac_dummies, 
+                method = "kknn", 
+                trControl = ctrl, 
+                preProcess = c("center","scale"),
+                tuneGrid = tuneGrid)
+
+#Output of kNN fit
+kknn_fit
+```
+
+Problem 3
+3-a
+Create k-means clusters for the wine data and create a silhouette to determine the best number of clusters
+```{r}
+library(factoextra)
+set.seed(45365)
+predictors = wine %>% select(-type)
+preproc <- preProcess(predictors, method=c("center", "scale"))
+predictors <- predict(preproc, predictors)
+fviz_nbclust(predictors, kmeans, method = "wss")
+```
+```{r}
+fviz_nbclust(predictors, kmeans, method = "silhouette")
+```
+
+3-b
+Create HAC clusters using 2 distance functions and 2 linkage functions
+1. Distance = Euclidean, Linkage = Complete
+```{r}
+library(stats)
+dist_mat <- dist(predictors, method = 'euclidean')
+hfit <- hclust(dist_mat, method = 'complete')
+plot(hfit)
+```
+```{r}
+h1 <- cutree(hfit, k=4)
+fviz_cluster(list(data = predictors, cluster = h1))
+```
+
+
+2. Distance = Manhattan, Linkage = Median
+```{r}
+dist_mat2 <- dist(predictors, method = 'manhattan')
+hfit2 <- hclust(dist_mat2, method = 'complete')
+plot(hfit2)
+```
+```{r}
+h2 <- cutree(hfit2, k=4)
+fviz_cluster(list(data = predictors, cluster = h2))
+```
+
+3. Distance = Euclidean, Linkage = Complete
+```{r}
+dist_mat3 <- dist(predictors, method = 'euclidean')
+hfit3 <- hclust(dist_mat3, method = 'median')
+plot(hfit3)
+```
+```{r}
+h3 <- cutree(hfit3, k=4)
+fviz_cluster(list(data = predictors, cluster = h3))
+```
+
+4. Distance = Manhattan, Linkage = Median
+```{r}
+dist_mat4 <- dist(predictors, method = 'manhattan')
+hfit4 <- hclust(dist_mat4, method = 'median')
+plot(hfit4)
+```
+```{r}
+h4 <- cutree(hfit4, k=4)
+fviz_cluster(list(data = predictors, cluster = h4))
+```
+
+3-c
+Create crosstabulation of K-Means and HAC clusters
+```{r}
+kfit <- kmeans(predictors, centers = 4, nstart = 30)
+kfit
+```
+```{r}
+result <- data.frame(Type = wine$type, HAC = h1, Kmeans = kfit$cluster)
+head(result, n = 100)
+```
+```{r}
+result %>% group_by(HAC) %>% select(HAC, Type) %>% table()
+```
+```{r}
+result %>% group_by(Kmeans) %>% select(Kmeans, Type) %>% table()
+```
+```{r}
+table(wine$type)
+```
+3-c
+Use PCA to plot the clusters of HAC and KMeans
+```{r}
+rotated_data$Clusters = as.factor(h1)
+ggplot(data = rotated_data, aes(x = PC1, y = PC2, col = Clusters)) + geom_point(alpha = 0.5)
+```
+```{r}
+rotated_data$Clusters = as.factor(kfit$cluster)
+ggplot(data = rotated_data, aes(x = PC1, y = PC2, col = Clusters)) + geom_point(alpha = 0.5)
+```
+Problem 4
+4-a
+Clean starwars data set
+```{r}
+data(starwars)
+starwars <- starwars %>% drop_na()
+starwars_clean <- starwars %>% select(-c("films","vehicles","starships","name"))
+cols <- c('hair_color','skin_color','eye_color','sex','gender','homeworld','species')
+starwars_clean[cols] <- lapply(starwars_clean[cols],factor)
+str(starwars_clean)
+```
+```{r}
+library(cluster)
+sw_predictors <- starwars_clean %>% select(-gender)
+dis_mat_sw <- daisy(sw_predictors, metric = 'gower')
+summary(dis_mat_sw)
+```
+```{r}
+fviz_nbclust(sw_predictors, FUN = hcut, method = "silhouette")
+```
+4-b Create a dendrogram
+```{r}
+hfit_sw <- hclust(dis_mat_sw, method = 'average')
+sw_h <- cutree(hfit_sw, k=2)
+plot(hfit_sw)
+```
+
+4-c
+Create dummy variables and use k-means to cluster
+```{r}
+dummies <- dummyVars(gender ~ ., data = starwars_clean)
+sw_dummies <- as.data.frame(predict(dummies, newdata = starwars_clean))
+# sw_dummies$gender <- starwars_clean$gender
+head(sw_dummies)
+```
+```{r}
+sw_kfit <- kmeans(sw_dummies, centers = 2, nstart = 30)
+sw_kfit
+```
+
+4-d Cross tabulate results of HAC and K-means
+```{r}
+sw_result <- data.frame(Gender = starwars_clean$gender, HAC = sw_h, Kmeans = sw_kfit$cluster)
+head(sw_result, n = 29)
+```
+```{r}
+sw_result %>% group_by(HAC) %>% select(HAC, Gender) %>% table()
+```
+```{r}
+sw_result %>% group_by(Kmeans
+                       ) %>% select(Kmeans, Gender) %>% table()
+```
+
