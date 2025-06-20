@@ -1,0 +1,201 @@
+Ian Mulchrone
+DSC 441
+Homework 2
+
+```{r}
+library(readr)
+bank <- read_csv("DSC441 FUNDAMENTALS OF DATA SCIENCE/BankData.csv", col_names = TRUE, show_col_types = FALSE)
+print(bank)
+```
+```{r}
+summary(bank)
+```
+
+```{r}
+library(conflicted)
+library(tidyverse)
+conflict_prefer("filter", "dplyr")
+conflict_prefer("lag", "dplyr")
+```
+Create histograms and bar charts for distribtions
+```{r}
+ggplot(bank, aes(cont1)) + geom_histogram(binwidth = 4)
+ggplot(bank, aes(cont2)) + geom_histogram(binwidth = 2)
+ggplot(bank, aes(cont3)) + geom_histogram(binwidth = 2)
+ggplot(bank, aes(cont4)) + geom_histogram(binwidth = 5)
+ggplot(bank, aes(cont5)) + geom_histogram(binwidth = 100)
+ggplot(bank, aes(cont6)) + geom_histogram(binwidth = 5000)
+ggplot(bank, aes(ages)) + geom_histogram(binwidth = 5)
+ggplot(bank, aes(credit.score)) + geom_histogram(binwidth = 20)
+ggplot(bank, aes(x=bool1)) + geom_bar()
+ggplot(bank, aes(x=bool2)) + geom_bar()
+ggplot(bank, aes(x=bool3)) + geom_bar()
+ggplot(bank, aes(x=approval)) + geom_bar()
+```
+
+
+Clean data by removing NA values
+```{r}
+bank <- bank %>% drop_na()
+print(bank)
+```
+
+Z-Score normalization
+```{r}
+library(caret)
+preproc1 <- preProcess(bank, method=c("center","scale"))
+norm1 <- predict(preproc1, bank)
+summary(norm1)
+ggplot(norm1, aes(ages)) + geom_histogram(binwidth = 0.5)
+# Create histograms for original and normalized mpg variables 
+par(mfrow = c(1, 2)) 
+# Set up plot layout 
+hist(bank$credit.score, main = "Original Credit Score", xlab = "Credit Score") 
+hist(norm1$credit.score, main = "Normalized Credit Score", xlab = "Z-Score values")
+
+#Reference: https://rstudiodatalab.medium.com/how-to-normalize-data-in-r-for-my-data-methods-and-examples-802827e5d2ad
+```
+Min-max normalization
+```{r}
+preproc2 <- preProcess(bank, method=c("range"))
+minmax <- predict(preproc2, bank)
+summary(minmax)
+ggplot(minmax, aes(cont1)) + geom_histogram(binwidth = 0.1)
+# Create histograms for original and normalized mpg variables 
+par(mfrow = c(1, 2)) 
+# Set up plot layout 
+hist(bank$ages, main = "Original", xlab = "Ages") 
+hist(minmax$ages, main = "Normalized", xlab = "Min-Max values")
+
+#Reference: https://rstudiodatalab.medium.com/how-to-normalize-data-in-r-for-my-data-methods-and-examples-802827e5d2ad
+```
+Decimal-Scaling Normalization
+```{r}
+decimal_scale <- function(x) {
+  max_abs <- max(abs(x))
+  power <- ceiling(log10(max_abs))
+  x/(10*power)
+}
+bank$cont2_ds <- decimal_scale(bank$cont2)
+
+# Create histograms for original and normalized mpg variables 
+par(mfrow = c(1, 2)) 
+# Set up plot layout 
+hist(bank$cont2, main = "Original Cont2", xlab = "Cont2") 
+hist(bank$cont2_ds, main = "Normalized Cont2", xlab = "Decimal-Scaled values")
+
+#Reference: https://rstudiodatalab.medium.com/how-to-normalize-data-in-r-for-my-data-methods-and-examples-802827e5d2ad
+```
+Create low, medium, high bins for credit score
+```{r}
+bank <- bank %>% mutate(cs_bins = cut(credit.score,
+                              breaks=c(-Inf, 660, 740, Inf),
+                              labels=c("low","medium","high")))
+summary(bank$cs_bins)
+```
+Convert low, medium, high to numeric variables
+```{r}
+bank <- bank %>%
+mutate(cs_cat = ifelse(cs_bins == "low", 0, ifelse(cs_bins == "medium", 1, 2)))
+head(bank)
+```
+
+Problem 2
+
+Build SVM
+```{r}
+library(e1071)
+
+train_control = trainControl(method = "cv", number = 10)
+
+svm_bank <- train(approval ~., data = bank, method = "svmLinear", trControl = train_control)
+# Evaluate fit
+svm_bank
+```
+Grid search to optimize model
+```{r}
+grid <- expand.grid(C = 10^seq(-5,2,0.5))
+
+# Fit the model
+svm_grid <- train(approval ~., data = bank, method = "svmLinear", 
+              trControl = train_control, tuneGrid = grid)
+# View grid search result
+svm_grid
+```
+
+
+Problem 3
+```{r}
+starwars <- starwars %>% select(-c("films","vehicles","starships","name"))
+starwars <- starwars %>% drop_na()
+print(starwars)
+```
+Create dummy variables excluding gender
+```{r}
+dummy <- dummyVars(gender ~ ., data = starwars)
+dummies <- as.data.frame(predict(dummy, newdata = starwars))
+head(dummies)
+```
+SVM predict gender
+```{r}
+library(e1071)
+# Fit the model
+svm1 <- train(gender ~., data = starwars, method = "svmLinear")
+# Evaluate fit
+svm1
+```
+```{r}
+# Get PCA object with prcomp
+starwars.pca <- prcomp(dummies)
+
+# View the PCA summary with cumulative proportions
+summary(starwars.pca)
+```
+```{r}
+# Visualize the scree plot
+screeplot(starwars.pca, type = "l") + title(xlab = "PCs")
+```
+```{r}
+# We don't want to include a prediction target variable in PCA, so we'll separate it
+target <- starwars %>% dplyr::select(gender) 
+
+# Create the components
+preProc <- preProcess(dummies, method="pca", pcaComp=3)
+starwars.pc <- predict(preProc, dummies)
+# Put back target column
+starwars.pc$gender <- starwars$gender
+# Make sure that we have the PCs as predictors
+head(starwars.pc)
+```
+SVM predictions with PCA categories
+```{r}
+library(e1071)
+set.seed(123)
+# Partition the data
+index = createDataPartition(y=starwars.pc$gender, p=0.7, list=FALSE)
+# Everything in the generated index list
+train_set = starwars.pc[index,]
+# Everything except the generated indices
+test_set = starwars.pc[-index,]
+# Fit the model
+train_control = trainControl(method = "cv", number = 5)
+svm_starwars <- train(gender ~., data = train_set, method = "svmLinear", trControl = train_control)
+# Evaluate fit
+svm_starwars
+```
+Model predictions
+```{r}
+pred_split <- predict(svm_starwars, test_set)
+
+# quick calculation of accuracy: what proportion of predictions match labels
+sum(pred_split == test_set$gender) / nrow(test_set)
+```
+
+Confusion matrix
+```{r}
+gender <- as.factor(test_set$gender)
+confusionMatrix(gender, pred_split)
+# print(test_set$gender)
+# print(pred_split)
+```
+
